@@ -13,6 +13,7 @@ package vn.app
 	import flash.display.Stage;
 	import flash.display.StageAlign;
 	import flash.display.StageScaleMode;
+	import flash.events.ContextMenuEvent;
 	import flash.events.Event;
 	import flash.events.EventDispatcher;
 	import flash.events.IOErrorEvent;
@@ -28,747 +29,484 @@ package vn.app
 	import flash.text.TextFieldAutoSize;
 	import flash.text.TextFieldType;
 	import flash.text.TextFormat;
+	import flash.ui.ContextMenu;
+	import flash.ui.ContextMenuItem;
 	import flash.utils.ByteArray;
+	import flash.utils.Dictionary;
 	import flash.utils.getDefinitionByName;
 	import flash.utils.getQualifiedClassName;
+	
 	/**
-	 * ...
-	 * @author 
+	 * 
+	 * @author thienhaflash (thienhaflash@gmail.com)
 	 */
 	public class MiniApp {
+		public static const APP_UPDATE	: String = '2012.06.09';
+		public static const APP_VERSION : String = '0.1.0';
 		
-		public function MiniApp(app : Object, appId: String = null, resetStageToDefault: Boolean) {
-			if (!_mainApp) _mainApp = this; //first app
+		
+	/*********************
+	 *		STATIC
+	 *********************/		
+		
+		public static var main : MiniApp;
+	 
+		
+	/*********************
+	 *	INIT / RESTART
+	 *********************/
+		
+		public function MiniApp(app: Object = null, config: Object = null, appId: String = null) {//flashvars map name->id
+			if (!(app is DisplayObjectContainer)) throw new Error('[MiniApp] Can not be attached a null app');
+			if (!main) main = this; //first App
 			
-			_app		= app as DisplayObject;
+			_app		= app as DisplayObjectContainer;
 			_appId		= appId;
-			_lib		= new MiniAppLib();
+			_appVars	= config;
 			
-			if (!_app) throw new Error('[MiniApp] Can not instantiate a null app');
-			_resetStageDefault	= resetStageToDefault;
-			_app.stage ? _getFlashVars() :  _app.addEventListener(Event.ADDED_TO_STAGE, _getFlashVars);
+			_app.stage ? _initStage() :  _app.addEventListener(Event.ADDED_TO_STAGE, _initStage);
 		}
 		
-		
-		
-		
-	/***********************
-	 * 		CORE
-	 ***********************/	
-		
-		private var _app		: DisplayObject; //the actual app
-		private var _appId		: String;
-		private var _flashvars	: Object;
-		private var _stage		: Stage;
-		
-		private var _isAppReady			: Boolean;
-		private var _resetStageDefault	: Boolean;
-		
-		private var _dispatcher			: EventDispatcher;
-		
-		private function _setStageDefault(): MiniApp {
-			_app.stage.scaleMode	= StageScaleMode.NO_SCALE;
-			_app.stage.align		= StageAlign.TOP_LEFT;
+		private function _initStage(e:Event = null): void {
+			if (e) _app.removeEventListener(Event.ADDED_TO_STAGE, _initStage);
+			
+			_getStage();
+			_getVars();
+			_configURL ? load.data(_configURL, _onAppConfigLoaded) : _onAppReady();
 		}
-		
-		private function _callApp(funcName: String, params: Array = null): void {
-			if (_app.hasOwnProperty(funcName)) {
-				(_app[funcName] as Function).apply(null, params);
-			}
-		}
-		
-	/***********************
-	 * 		LIBRARY
-	 ***********************/
-		
-		public var encoder		: EncoderWrapper;
-		public var soundManager	: SoundManagerWrapper;
-		public var langManager	: LanguageManagerWrapper;
-		public var userManager	: UserManagerWrapper;	
-		//public var fontManager	: FontManagerWrapper;
-		
-		
-	/***********************
-	 * 		EVENT SYSTEM
-	 ***********************/	
-		
-		
-		//TODO : add Event System support
-		
-		
-		
-	/***********************
-	 * 		CONFIGURATION
-	 ***********************/	
-		
-		//path
-		public var appPath	: String;
-		private var xmlPath	: String;
-		
-		private function _getFlashVars(e: Event = null):void {
-			if (e) _app.removeEventListener(Event.ADDED_TO_STAGE, _getFlashVars);
-			
-			_stage = _app.stage;
-			if (setStageDefault) _setStageDefault();
-			
-			var tmp : Object = _app.root.loaderInfo.parameters;
-			
-			if (_appId && tmp[_appId]) {//support _appId flashvars
-				_flashvars = tmp[_appId];
-			} else {
-				_flashvars = tmp;
-				if (_appId) { //support appId.appPath / appId.xmlPath
-					appPath = _flashvars[_appId + '.appPath'];
-					xmlPath = _flashvars[_appId + '.xmlPath'];
-				}
-			}
-			
-			if (!appPath) appPath = _flashvars['appPath'] || '';
-			if (!xmlPath) xmlPath = _flashvars['xmlPath'] || 'appConfig.xml';
-			if (xmlPath) {
-				_configLoader = loadData(xmlPath, _onAppConfigLoaded);
-			} else {//no xmlPath defined : no libraries ...
-				_onAppReady();
-			}
-		}
-		
-		//TODO : support App reload ?
-		private var _configLoader	: URLLoader;
 		
 		private function _onAppConfigLoaded(e: Event):void {
 			//check to load neccessary libraries
 			
-			//TODO : load assets
 			//TODO : load libraries
-			//TODO : load sound / fonts / assets
+			//TODO : load assets / sound / fonts /
 			//TODO : support XML version caching ( ?ver= )
 			//TODO : support debug layer
 			//TODO : support dynamic Library
 			
-			//onEveryting complete
-			_onAppReady();
+			//onEverything complete
+			_onAppReady(XML(e.currentTarget.data));
 		}
 		
-		private function _onAppReady(): void {
-			_isAppReady = true;
-			_callApp('init', _configLoader ? [XML(_configLoader.data)] : null);
+		private function _onAppReady(data: XML = null): void {
+			_appXML = data;
+			_callApp('miniInit', [data]);
 		}
 		
-	/*************************
-	 * 		LIBRARY
-	 *************************/
+	/*********************
+	 *		SHORTCUTS
+	 *********************/	
 		
-		private var _library : MiniAppLibrary;
+		private function _callApp(funcName: String, params: Array = null): void {
+			if (_app.hasOwnProperty(funcName) && _app[funcName] is Function) (_app[funcName] as Function).apply(null, params);
+		}
 		
-		
-		
-	/*************************
-	 * 		CONTEXT MENU
-	 *************************/	
-		
-		
-		
-	/*************************
-	 * 		CORE AS3
-	 *************************/
-		
-		public function populateProps(props: Object, ...list): void {
-			var itm : * ;
-			var l	: int = list.length;
-			for (var i: int = 0; i < l; i++) {
-				itm = list[i];
-				
-				for (var s : String in props) {
-					itm[s] = props[s];
-				}
+		private function _getStage(): void {
+			_stage 				= _app.stage;
+			if (!_appVars || _appVars.preventStageDefault != true) {
+				_stage.scaleMode	= StageScaleMode.NO_SCALE;
+				_stage.align		= StageAlign.TOP_LEFT;
+			}
+			
+			if (!_appVars || _appVars.preventContextMenuDefault != true) {
+				contextMenu.add(_app, _appId || ('MiniApp v.' + APP_VERSION));
 			}
 		}
 		
-		
+		private function _getVars(): void {
+			var pathName 		: String = 'path';
+			var configURLName	: String = 'config';
 			
-		public function getURL(url: String, windows: String = '_blank'): void {
-			navigateToURL(new URLRequest(url), windows);
-		}
-		
-		public function midObj(): void {
+			if (_appVars && _appVars.mapFlashvars) { //allow reconfig flash variables names for path / config
+				pathName		= _appVars.mapFlashvars['path'];
+				configURLName	= _appVars.mapFlashvars['config'];
+			}
 			
+			//get flashvars
+			var p : DisplayObjectContainer = _app;
+			while (p.parent) { p = p.parent };
+			_flashvars	= p.root.loaderInfo.parameters;
+			
+			//get appVars
+			_appVars ||= { }; //allow default appvars
+			if (_appId) {
+				for (var s : String in _flashvars) {
+					if (s.indexOf(_appId + '.') == 0) _appVars[s.split(_appId+'.')[1]] = _flashvars[s];
+				}
+			} else {//no _appId : there are only 1 app here, no need to have _appId. style config
+				(_appVars, _flashvars);
+			}
+			
+			load.appPath	= _appVars[pathName] || '';
+			_configURL		= _appVars[configURLName] || 'config.xml';
 		}
 		
-		//addLsn
-		//removeLsn
-		//align / scale
-		//bitmapShot
 		
+	/*********************
+	 *		APP VARS
+	 *********************/
 		
-		//getQueue
+		private var _app		: DisplayObjectContainer; //the actual app
+		private var _stage		: Stage;
+		private var _flashvars	: Object;
+		private var _configURL	: String;
 		
-		//getJSWindow
-		//getJS....
+		private var _appId		: String;
+		private var _appDebug	: Boolean;
+		private var _appVars	: Object;
+		private var _appXML		: XML;
 		
-		//copyObj
-		//shuffleArray
-		//getExtension
+		public function get app()			: DisplayObject		{ return _app }
+		public function get stage()			: Stage				{ return _stage }
 		
-		//drag
-		//addJSCallbacks()
+		public function get appId()			: String			{ return _appId }
+		public function get appDebug()		: Boolean 			{ return _appDebug }
+		public function get appVars()		: Object 			{ return _appVars }
+		public function get appPath()		: String			{ return load.appPath }
+		public function get appXML()		: String			{ return _appXML }
+		public function get flashvars()		: Object			{ return _flashvars }
 		
-	/************************
-	 * 		CACHE SUPPORT
-	 ************************/
+	/*********************
+	 *	MINI LIBRARY
+	 ********************/
 		
-		//TODO : support cache, use ID / timeStamp
+		public function get tween()			: MiniTween			{ return MiniTween.instance; }
+		public function get load()			: MiniLoad			{ return MiniLoad.instance; }
 		
-		
-	/*************************
-	 * 	SIMPLE LABEL BUTTON
-	 *************************/	
-		
-		//TODO : add simple label button support
-		
-	/***********************
-	 * 		SIMPLE LOADER
-	 ***********************/	
-		
-		private var _ldContext	: LoaderContext;
-		private var _loaderRef	: Object;
-	 
-		public function loadData(url: String, onComplete: Function, onError: Function = null, onProgress: Function = null): URLLoader {
-			var ld : URLLoader = new URLLoader();
-			if (onComplete) ld.addEventListener(Event.COMPLETE, onComplete);
-			ld.addEventListener(IOErrorEvent.IO_ERROR, onError != null ? onError : trace);
-			ld.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onError != null ? onError : trace);
-			ld.load(new URLRequest(appPath + url));
-		}
-		
-		public function loadGraphic(url: String, onComplete: Function, onError: Function = null, onProgress: Function = null): Loader {
-			var ld		: Loader		= new Loader();
-			var info	: LoaderInfo	= ld.contentLoaderInfo;
-			ld.contentLoaderInfo.addEventListener(IOErrorEvent.IO_ERROR, onError ? onError : trace);
-			if (onComplete != null) ld.contentLoaderInfo.addEventListener(Event.COMPLETE, onComplete);
-			if (onProgress != null) ld.contentLoaderInfo.addEventListener(ProgressEvent.PROGRESS, onProgress);
-			if (!_ldContext) _ldContext = new LoaderContext(true, ApplicationDomain.currentDomain);
-			ld.load(new URLRequest(appPath + url), _ldContext);
-			return ld;
-		}
-		
-		public function loadSound(url: String, buffTime: int): void {
-			//TODO : do load sound
-		}
-		
-	/***********************
-	 * 		SIMPLE TWEENER
-	 ***********************/	
-		
-		//aim
-		//aimGroup
-		
-	/***********************
-	 * 		TWEENER
-	 ***********************/
-		
-		private var _tweenLib	: Object;
-		private var _loadLib	: Object;
-		
-		public function tween(target: Object, time: * , vars: Object): void { if (_tweenLib) _tweenLib.to(target, time, vars); }
-		public function killTweensOf(target: Object): void 	{ if (_tweenLib) _tweenLib.killTweensOf(target); }
-		
-		public function load(items: * , onComplete: * = null, itemConfig: Object = null, groupConfig: Object = null, prioritize: Boolean = false): void { if (_lib.loader) _lib.loader.add(items, onComplete, itemConfig, groupConfig, prioritize); }
-		//TODO : support local loader
-		//TODO : support basePath for loading items
-		//TODO : support for stop the loading process or cache group ?
-		
-	/**************************
-	 * 		STATIC WRAPPER
-	 **************************/ 
-		
-		private static var _main : MiniApp;
-		
-		public static function load(items: * , onComplete: * = null, itemConfig: Object = null, groupConfig: Object = null, prioritize: Boolean = false): void {
-			_main.load(items, onComplete, itemConfig, groupConfig, prioritize);
-		}
-		
-		public static function tween(target: Object, time: * , vars: Object): void {
-			_main.tween(target, time, vars);
-		}
+		public function get button()		: MiniButton 		{ return MiniButton.instance; }
+		public function get movieClip()		: MiniMovie			{ return MiniMovie.instance; }
+		public function get object()		: MiniObject		{ return MiniObject.instance; }
+		public function get display()		: MiniDisplay		{ return MiniDisplay.instance; }
+		public function get contextMenu()	: MiniContextMenu	{ return MiniContextMenu.instance; }
+		public function get event()			: MiniEvent			{ return MiniEvent.instance; }
+		public function get graphics()		: MiniGraphics		{ return MiniGraphics.instance; }
+		public function get utils()			: MiniUtils			{ return MiniUtils.instance; }
 	}
 }
 
-import flash.display.Bitmap;
-import flash.display.BitmapData;
-import flash.display.BlendMode;
 import flash.display.DisplayObject;
 import flash.display.DisplayObjectContainer;
-import flash.display.Graphics;
-import flash.display.IBitmapDrawable;
-import flash.display.Shape;
-import flash.display.Sprite;
-import flash.geom.ColorTransform;
+import flash.display.InteractiveObject;
+import flash.display.Loader;
+import flash.display.LoaderInfo;
+import flash.events.ContextMenuEvent;
+import flash.events.Event;
+import flash.events.IOErrorEvent;
+import flash.events.ProgressEvent;
+import flash.events.SecurityErrorEvent;
+import flash.media.Sound;
 import flash.net.navigateToURL;
+import flash.net.URLLoader;
 import flash.net.URLRequest;
-import flash.text.TextField;
-import flash.text.TextFieldAutoSize;
-import flash.text.TextFormat;
-import flash.utils.ByteArray;
-import flash.utils.Dictionary;
-import flash.utils.getDefinitionByName;
-import flash.utils.getQualifiedClassName;
+import flash.system.ApplicationDomain;
+import flash.system.LoaderContext;
+import flash.ui.ContextMenu;
+import flash.ui.ContextMenuItem;
 
+class MiniTween {
+	internal static var instance : MiniTween = new MiniTween();
+	//aim
+	//aimGroup
+}
 
-class ClassLib {
-	public var dictId : Dictionary;
+class MiniLoad {
+	internal static var instance : MiniLoad = new MiniLoad();
 	
-	public function ClassLib(xml: XML) {
-		dictId = new Dictionary();
+	private var _ldContext	: LoaderContext;
+	public var appPath		: String;
+	public var noCache		: Boolean;
+	
+	public function updateURL(url: String): String {
+		if (!url) return null;
+		
+		if (url.indexOf('http://') == -1) url = appPath + url; //prepend appPath
+		if (noCache && url.indexOf('noCache') == -1) {//append noCache
+			url += (url.indexOf('?') == -1) ? '?noCache=' : '&noCache=' + Math.random();
+		}
+		return url;
+	}
+	
+	public function data(url: String, onComplete: Function, onError: Function = null, onProgress: Function = null): URLLoader {
+		if (!url) return null;
+		url = updateURL(url);
+		
+		var ld : URLLoader = new URLLoader();
+		if (onComplete != null) ld.addEventListener(Event.COMPLETE, onComplete);
+		ld.addEventListener(IOErrorEvent.IO_ERROR, onError != null ? onError : trace);
+		ld.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onError != null ? onError : trace);
+		ld.load(new URLRequest(url));
+		return ld;
+	}
+	
+	public function graphic(url: String, onComplete: Function, onError: Function = null, onProgress: Function = null): Loader {
+		if (!url) return null;
+		url = updateURL(url);
+		
+		var ld		: Loader		= new Loader();
+		var info	: LoaderInfo	= ld.contentLoaderInfo;
+		
+		ld.contentLoaderInfo.addEventListener(IOErrorEvent.IO_ERROR, onError != null ? onError : trace);
+		if (onComplete != null) ld.contentLoaderInfo.addEventListener(Event.COMPLETE, onComplete);
+		if (onProgress != null) ld.contentLoaderInfo.addEventListener(ProgressEvent.PROGRESS, onProgress);
+		if (!_ldContext) _ldContext = new LoaderContext(true, ApplicationDomain.currentDomain);
+		ld.load(new URLRequest(url), _ldContext);
+		return ld;
+	}
+	
+	public function sound(url: String, buffTime: int): Sound {
+		//TODO : do load sound
+		return null;
+	}
+	
+	public function loadVideo(): void {
+		
+	}
+}
+
+class MiniDisplay {
+	internal static var instance : MiniDisplay = new MiniDisplay();
+}
+
+class MiniContextMenu {
+	internal static var instance : MiniContextMenu = new MiniContextMenu();
+	/**
+	
+	SAMPLE USAGE 	:
+		
+	1.	setContextMenu(pdo,	//one caption mapping to an onSelect handler
+			'home',			onSelectHome,
+			'about us',		onSelectAbout,
+			'profile',		onSelectProfile,
+			'portfolio',	onSelectPortfolio
+		);
+		
+	2.	setContextMenu(pdo, //use '' in place of separators & skip the handlers for NON-clickable items
+			'version 1.0',
+			'copyright(c) 2012 by MiniApp',
+			'',
+			'home',			onSelectHome,
+			'about us',		onSelectAbout,
+			'profile',		onSelectProfile,
+			'portfolio',	onSelectPortfolio
+		);
+		
+	3.	setContextMenu(pdo, //use Object instead of the item list
+			'version 1.0', 
+			'copyright(c) 2012 by MiniApp',
+			'', 
+			{	home		: onSelectHome,
+				'about us'	: onSelectAbout,
+				profile 	: onSelectProfile,
+				portfolio	: onSelectPortfolio,
+				'show Reel'	: onSelectShowReel,
+				contact		: onSelectContact,
+				info		: onSelectInfo
+			}
+		);
+		
+	4.	setContextMenu(pdo, //use Array to group items that shares the same onSelect hander
+			['version 1.0', 'copyright(c) 2012 by MiniApp', ''],
+			['home', 'about us', 'profile', 'portfolio'], onSelectMenuItem
+		);
+		
+		
+	//TODO :	SUPPORT FOR ADVANCED OBJECT CONTEXT MENU
+	5.	setContextMenu(pdo, //use advanced object have more powerful tweaks : rename / disable / enable / prepend / append / hide / show
+			{	'rename' : [	
+					0,			'Version 1.0 RC - r238',
+					6,			'Video'
+					'home',		'-> Home'
+					'file', 	'Client Profile',
+					'about',	'About our company'
+				]
+			}
+		);
+		
+	**/
+	public function add(pdo: InteractiveObject, ...list): ContextMenu {
+		var menu : ContextMenu = pdo.contextMenu || new ContextMenu();
+		menu.hideBuiltInItems();
 		
 		var i		: int;
-		var l		: int;
-		var xmlList : XMLList;
+		var item	: * ;
+		var tmp		: * ;
+		var obj		: Object;
+		var capsArr	: Array;
+		var isFunc	: Boolean;
+		var sep		: Boolean;
+		var l		: int = list.length;
+		var cmiArr 	: Array = menu.customItems || [];
 		
-		//parse classes
-		xmlList	= xml.item;
-		l		= xmlList.length();
-		
-		for (i = 0; i < l; i++) {
-			var li : LibItem = new LibItem(xmlList[i]);
-			dictId[li.id] = li;
-		}
-	}
-}
-
-class LibItem {
-	public var id			: String;
-	public var url			: String;
-	public var type			: String;
-	public var definition	: String;
-	
-	public var nodeType		: String; //class or manager
-	
-	public var lib			: Object;
-	public var data			: Object;
-	
-	public function LibItem(xml: XML) {
-		id			= String(xml.@id);
-		url			= String(xml.@url);
-		definition	= String(xml.@definition);
-		data		= String(xml);
-		
-		tryToGetLib();
-	}
-	
-	public function tryToGetLib(): * {
-		if (lib) return lib;
-		
-		var cls : Class = getDefinitionByName(definition);
-		if (lib) {
-			switch (type) {
-				case 'static'		: lib = cls; break;
-				case 'instance'		: lib = new cls();  break;
-				case 'singleton'	: lib = cls.getInstance(); break;
-				//todo : support for other types
-			}
-		}
-		return lib;
-	}
-	
-	//TODO : support newLib() !
-}
-
-class EncoderWrapper {
-	public var lib : Object;
-	
-	public function bmd2PNG(bm: BitmapData): ByteArray {
-		
-	}
-	
-	public function bmd2JPG(bm: BitmapData): ByteArray {
-		
-	}
-	
-	public function base64(data: *): String {
-		
-	}
-	
-	public function md5(data: *): String {
-		
-	}
-	//TODO : how about zip / unzip ?
-}
-
-class SoundManagerWrapper {
-	public var lib : Object;
-	
-	public function play(soundId : String, loop: int = 0, reset: Boolean = false): void {
-		if (lib) lib.playSound(soundId, loop, reset);
-	}
-	
-	public function stop(soundId: String): void {
-		if (lib) lib.stopSound(soundId);
-	}
-	
-	public function stopAll(type: String = null): void {
-		if (lib) lib.stopAllSound(soundId);
-	}
-	
-	public function setVolume(type:String = null, value: Number): void {
-		if (lib) lib.setSoundVolume(type, value);
-	}
-	
-	public function getVolume(type: String): Number {
-		return lib ? lib.getSoundVolume(type) : 0;
-	}
-	
-	public function get fxVolume():Number { return getSoundVolume('fx'); }
-	public function get bgVolume():Number { return getSoundVolume('bg'); }
-	
-	public function set fxVolume(value: Number):void { return setSoundVolume('fx', value); }
-	public function set bgVolume(value: Number):void { return setSoundVolume('bg', value); }
-}
-
-class LanguageManagerWrapper {
-	public var lib : Object;
-	
-	public function getLangText(id: String): String {
-		return _lib.langManager ? _lib.langManager.getText(id) : '';
-	}
-	
-	public function updateLangTf(...list): void {
-		if (_lib.langManager) _lib.langManager.updateTextFields.apply(null, list);
-	}
-	
-	public function injectLang(id: String, ...data): String {
-		return _lib.langManager ? _lib.langManager.inject() : ''
-	}
-	
-	//TODO : add register/ unRegister visible textfield + refresh to allow instant refresh language
-}
-
-class UserManagerWrapper {
-	
-}
-
-class DisplayLibWrapper {
-	
-/***************************
- *		EMBED 
- ***************************/
-
-	private static var formatProps : Object = { align: 1, blockIndent: 1, bold: 1, bullet: 1, color: 1, font: 1, indent: 1, italic: 1, italic: 1, kerning: 1, leading: 1, leftMargin: 1, letterSpacing: 1, rightMargin: 1, size: 1, tabStops: 1, target: 1, underline: 1, url: 1 };
-	
-	public function drawRect(pDO: Object, pcolor: int = 0xEAEAEA, pwidth: int = 100, pheight: int = 100, palpha: Number = 1) : DisplayObject {
-		var g	: Graphics =	(pDO is Sprite) ? (pDO as Sprite).graphics
-								:	(pDO is Shape) ? (pDO as Shape).graphics : null;
-		
-		if (g) {
-			g.beginFill(pcolor, palpha);
-			g.drawRect(0, 0, pwidth, pheight);
-			g.endFill();
-		} else {
-			//showError('drawRect', 'pDO', pDO);
-		}
-		return pDO as DisplayObject;
-	}	
-		
-	public function removeChildren(parent:Object, returnChildren:Boolean = false, fromTop:Boolean = false, ignoreCount:int = 0):Array {
-		var pp	: DisplayObjectContainer = parent as DisplayObjectContainer;
-		
-		if (pp) {
-			var ch	: Array	= returnChildren ? [] : null;
-			var n	: int	= pp.numChildren;
-			var cdo	: DisplayObject;
+		while (i < l) {
+			item	= list[i++];
+			if (!item) { sep = true; continue; } //null or '' item mean separator
 			
-			while (--n >= ignoreCount) {
-				cdo = pp.removeChildAt(fromTop ? n : 0);
-				if (returnChildren) ch.push(cdo);
-			}
-		} else {
-			//showError('removeChildren', 'parent', pp);
-		}
-		
-		return ch;
-	}
-	
-	public function removeDO(pChild: Object): DisplayObject {
-		var cdo : DisplayObject = pChild as DisplayObject;
-		
-		if (cdo && pChild.parent) {
-			cdo.parent.removeChild(cdo);
-		} else {
-			//showError('removeChildrenByNames', 'pChild', pChild);
-		}
-		
-		return cdo;
-	}
-	
-	public function setMouse(pDO: * , pMouseEnabled: Boolean = false, pButtonMode: Boolean  = false, pMouseChildren: Boolean = false): void {
-		//TODO : support array
-		
-		var cdo : InteractiveObject = pDO as InteractiveObject;
-		
-		if (cdo) {
-			cdo.mouseEnabled	= pMouseEnabled;
-			var sprt : Sprite	= cdo as Sprite;
+			capsArr = item is String ? [item] : item is Array ? item : null;
 			
-			if (sprt) {
-				sprt.buttonMode		= pButtonMode;
-				sprt.mouseChildren	= pMouseChildren;
-			}
-		} else {
-			//showError('setMouse', 'pDO', pDO);
-		}
-	}
-	
-	public function hitTestMouse(pDO: DisplayObject, shapeFlag : Boolean): Boolean {
-		var cdo : DisplayObject = pDO as DisplayObject;
-		
-		if (!cdo) showError('hitTestMouse', 'pDO', pDO);
-		return pDO && cdo.stage ? cdo.hitTestPoint(cdo.stage.mouseX, cdo.stage.mouseY, shapeFlag) : false;
-	}
-	
-	public function newMask(pDO : Object, w: int, h: int): Shape {
-		var cdo	: DisplayObject = pDO as DisplayObject;
-		if (cdo) {
-			var shp : Shape = drawRect(new Shape(), 0, 100, 100) as Shape;
-			if (cdo.parent) cdo.parent.addChild(shp);
-			
-			shp.x		= cdo.x;
-			shp.y		= cdo.y;
-			shp.width	= w;
-			shp.height	= h;
-			cdo.mask	= shp;
-		} else {
-			//showError('newMask', 'pDO', pDO);
-		}
-		return shp;
-	}
-	
-	public function newTextField(parent: Object = null, isInput: Boolean = false, w: int = 150, h: int = 25, x: int = 0, y: int = 0): TextField {
-		var tf : TextField = formatTextField(new TextField(), { type		: isInput ? TextFieldType.INPUT : TextFieldType.DYNAMIC
-																, multiline	: false
-																, x			: x
-																, y			: y
-																, width		: w
-																, height	: h
-																, size		: 16 } );
-		var pp : DisplayObjectContainer = parent as DisplayObjectContainer;
-		pp ? pp.addChild(tf) : showError('newTextField', 'parent', parent);
-		
-		return tf;
-	}
-	
-	public function newBitmapData(w: int, h: int, src: IBitmapDrawable, bmd: BitmapData = null): BitmapData {
-		if (!bmd || bmd.width != w || bmd.height != h) {
-			bmd = new BitmapData(w, h, true, 0x00ffffff);
-		}
-		bmd.draw(src, null, null, null, null, true);
-		return bmd;
-	}
-	
-	public function cloneDO(source: * ): DisplayObject {
-		var obj : Object;
-		
-		if (source) {
-			switch (true) {
-				case source is Bitmap	: //Clone a Bitmap	: reuse BitmapData
-					obj = new Bitmap((source as Bitmap).bitmapData, 'auto', true); break;
-				case source is String	: //Clone a ClassName : find the class first - no break !	
-					source = getDefinitionByName(source) as Class;
-				case source is Class	: //Clone a Class : just new
-					//if (getQualifiedClassName(source) == 'flash.display::MovieClip') showError('cloneDO', 'className', source);
-					obj = new (source as Class)();
-					break;
-				default	: obj = new source.constructor();
-			}
-		} else {
-			//showError('cloneDO', 'source', source);
-		}
-		
-		return obj as DisplayObject;
-	}
-	
-	public function tint(pDO : Object, color: int, amount: Number = 1): void {
-		var cdo : DisplayObject = pDO as DisplayObject;
-		
-		if (cdo) {
-			var ct	: ColorTransform = new ColorTransform();
-			ct.color			= color;
-			ct.redOffset		= amount * ct.redOffset;
-			ct.greenOffset		= amount * ct.greenOffset;
-			ct.blueOffset		= amount * ct.blueOffset;
-			
-			ct.redMultiplier	= 1 - amount;
-			ct.greenMultiplier	= 1 - amount;
-			ct.blueMultiplier	= 1 - amount;
-			
-			(cdo as DisplayObject).transform.colorTransform = ct;
-		} else {
-			//showError('tint', 'pDO', pDO);
-		}
-	}
-	
-	public function brightness(pDO : Object, amount: Number = 1): void {
-		var cdo : DisplayObject = pDO as DisplayObject;
-		
-		if (!cdo) {
-			var ct	: ColorTransform = new ColorTransform();
-			var val	: int = amount * 255;
-			
-			ct.redOffset	= val;
-			ct.greenOffset	= val;
-			ct.blueOffset	= val;
-			cdo.transform.colorTransform = ct;
-		} else {
-			//showError('brightness', 'pDO', pDO);
-		}
-	}
-	
-	public function formatTextField(textfield: TextField, formatObj: Object, useAsDefault:Boolean = true): TextField { /* small secrets : useDefaults : true */
-		if (textfield) {
-			var tff		: TextFormat	= textfield.getTextFormat();
-			if (formatObj) {
-				if (formatObj.useDefaults) {
-					formatObj['autoSize']			= TextFieldAutoSize.LEFT;
-					formatObj['selectable']			= false;
-					formatObj['mouseWheelEnabled']	= false;
-					formatObj['mouseEnabled']		= false;
-					formatObj['blendMode']			= BlendMode.LAYER;
-					delete formatObj.useDefaults;
-				}
+			if (capsArr) {
+				tmp	= i < l ? list[i] : null;
+				isFunc	= tmp is Function;
 				
-				for (var prop : String in formatObj) {
-					formatProps[prop] ? tff[prop] = formatObj[prop] : textfield[prop] = formatObj[prop];
+				for (var j: int = 0; j < capsArr.length; j++) {
+					sep = !capsArr;
+					if (!sep) cmiArr.push(newItem(capsArr[j], isFunc ? tmp : null, sep, isFunc));
 				}
-				textfield.setTextFormat(tff);
+				if (isFunc) i++; //have onSelect cost 1 more element in list
+			} else {//must be an Object (complex item)
+				obj = item;
+				for (var s : String in obj) {
+					tmp = obj[s];
+					isFunc = tmp is Function;
+					if (isFunc) cmiArr.push(newItem(s, tmp));
+				}
 			}
-			if (useAsDefault) textfield.defaultTextFormat = tff;
-		} else {
-			//showError('formatTextfield', 'textfield', textfield, 'formatObj', formatObj);
 		}
 		
-		return textfield;
-	}
-		
-		
-/***************************
- *		EXTERNAL LINKED 
- ***************************/
-	
-	public var lib : Object; //more advanced display features
-	
-	public function getIndex(pChild : Object): int {
-		
-	}
-	public function setIndex(pChild : Object, idx : int): void {
-		
-	}
-	public function removeChildrenByNames(parent: Object, names: * , returnChildren: Boolean = false): Array {
-		
-	}
-	public function removeChildrenExceptNames(parent: Object, exceptNames: * , returnRemovedDO : Boolean = false): Array {
-		
-	}
-	public function addChildrenByNames(parent: Object, names: * ): void {
-		
-	}
-	public function addChildren(parent: Object, children: Array, at: int = -1) : void {
-		
-	}
-	public function getChildrenExceptNames(parent: Object, exceptNames: * ): Array {
-		
-	}
-	public function getChildrenByNames(parent: Object, names: * ): Array {
-		
-	}
-	public function getChildren(parent: Object, fromTop : Boolean = false, ignoreCount : int = 0): Array {
-		
-	}
-	public function hzDistribute(spacing: int = 0, ...list):void {
-		
-	}
-	public function getBound(pDO: Object):Rectangle {
-		
-	}
-	public function getRect(pDO: DisplayObject): Rectangle {
-		
-	}
-	public function dropshadow(pDO: Object, distance:Number = 4.0, angle:Number = 45, color:uint = 0, alpha:Number = 1.0, blurX:Number = 4.0, blurY:Number = 4.0, strength:Number = 1.0, quality:int = 1, inner:Boolean = false, knockout:Boolean = false, hideObject:Boolean = false):void {
-		
-	}
-	public function blur(pDO: Object, blurX:Number = 4.0, blurY:Number = 4.0, quality:int = 1):void {
-		
-	}
-	public function bevel(pDO: Object, distance:Number = 4.0, angle:Number = 45, highlightColor:uint = 0xFFFFFF, highlightAlpha:Number = 1.0, shadowColor:uint = 0x000000, shadowAlpha:Number = 1.0, blurX:Number = 4.0, blurY:Number = 4.0, strength:Number = 1, quality:int = 1, type:String = "inner", knockout:Boolean = false):void {
-		
-	}
-	public function glow(pDO: Object, color:uint = 0xFF0000, alpha:Number = 1.0, blurX:Number = 6.0, blurY:Number = 6.0, strength:Number = 2, quality:int = 1, inner:Boolean = false, knockout:Boolean = false):void {
-		
-	}
-	public function grayscale(pDO: Object, amount: Number = 1): void {
-		
-	}
-	public function drawArc(pDO: Object, ox: int, oy: int, r: Number, stAngle: Number, edAngle: Number): DisplayObject {
-		
-	}
-	public function scaleAround(pDO: Object, x: Number, y: Number, sx: Number, sy: Number, oMatrix: Matrix = null) : void {
-		
-	}
-	public function rotateAround(pDO: Object, x: Number, y: Number, angle: Number, oMatrix: Matrix = null): void {
-		
+		menu.customItems = cmiArr;
+		pdo.contextMenu = menu;
+		return menu;
 	}
 	
-	//KStateView
-	//KGroup
+	public function newItem(caption: String, onSelect: Function = null, separatorBefore: Boolean = false, enabled: Boolean = true, visible: Boolean = true): ContextMenuItem {
+		var mi : ContextMenuItem = new ContextMenuItem(caption, separatorBefore, enabled, visible);
+		if (onSelect != null) mi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, onSelect);
+		return mi;
+	}
 	
-	//KVideo
-	//KWebcam
-	//KView
+	public function rename(): ContextMenu {
+		var menu : ContextMenu;
+		return menu;
+	}
+	
+	//public function hasCustomContextMenuItems(pdo: InteractiveObject): Boolean {
+		//return (pdo.contextMenu as ContextMenu).customItems && (pdo.contextMenu as ContextMenu).customItems.length > 0;
+	//}
+}
+
+class MiniButton {
+	internal static var instance : MiniButton = new MiniButton();
 	
 }
 
-class DebugWrapper {
-	public function obj2String(obj: Object): String {
-		
+class MiniMovie {
+	static public var instance : MiniMovie;
+}
+
+class MiniGraphics {
+	static public var instance : MiniGraphics;
+}
+
+class MiniUtils {
+	internal static var instance : MiniUtils = new MiniUtils();
+	
+	public function getURL(url: String, windows: String = '_blank'): void {
+		navigateToURL(new URLRequest(url), windows);
 	}
 	
-	//FPS
-	//Performance bencher
-	//Logger
-	//MonsterDebugger connect
-}
-
-class PerformanceTweak {
-	//cache
-	//pool
-	//lazyIndex (array dirty mark)
-}
-
-class DisplayComponent {
-	//AssetBasic
-	//AssetReplacer
 	
-	//mask scroller
-	//menu
-	//radio button
-	//scroller
-	//tooltip
-	//item grid
-	//form
-	//Search / filter
+	//public function getFlashVars(pdo : DisplayObject): Object {
+		//if (!pdo.stage) return null; //not yet added to stage, can not get flashvars
+		//var p : DisplayObjectContainer = pdo;
+		//while (p.parent) { p = p.parent };
+		//return p.root.loaderInfo.parameters;
+	//}
+	
+	
+	//getQueue
+		
+	//getJSWindow
+	//getJS....
+	
+	//copyObj
+	//shuffleArray
+	//getExtension
+	
+	//drag
+	//addJSCallbacks()
 }
 
-
-
-class SimpleMath {
-	//pct2Val
-	//val2pct
-	//roundTo
-	//clamp
-	//copyMatrix
+class MiniMath {
+	public function interpolateObject(st: Object, ed: Object, percent: Number, target: Object = null): Object {
+		if (!target) target = { };
+		
+		for (var s: String in st) {
+			target[s] = st[s] + (ed[s] - st[s]) * percent;
+		}
+		return target;
+	}
+	
+	//public function interpolate(listOfValues: Array, percent: Number): Number {
+		//
+	//}
 }
 
-
-class AirWrapper {
-	//do Air Specific functions
+class MiniObject {
+	public static var instance : MiniObject = new MiniObject();
+	
+	public function populate(props: Object, ...list): void {
+		var itm : * ;
+		var l	: int = list.length;
+		for (var i: int = 0; i < l; i++) {
+			itm = list[i];
+			
+			for (var s : String in props) {
+				itm[s] = props[s];
+			}
+		}
+	}
+	
+	public function clone(src: Object): Object {
+		var obj : Object = { };
+		for (var s : String in src) { obj[s] = src[s]; }
+		return obj;
+	}
 }
 
+class MiniEvent {
+	static public var instance : MiniEvent = new MiniEvent;//addLsn
+	//removeLsn
+	
+	
+}
 
+class MiniDebug {
+	
+	public var traceErrors	: Boolean	= true;
+	public function showError(functionName: String, ...rest): void {
+		if (!traceErrors) return;
+		
+		var s	: String = 'KDisplay.' + functionName + ' fail with';
+		var tmp	: String;
+		var l	: int = rest.length;
+		var cdo	: DisplayObject;
+		
+		for (var i: int = 0; i < l; i += 2) {
+			cdo = rest[i + 1];
+			
+			if (cdo) {
+				tmp = cdo.name || String(cdo);
+				while (cdo.parent) { //get full name from the root
+					cdo = cdo.parent;
+					if (cdo == cdo.stage) {
+						tmp = 'stage.' + tmp;
+						break;
+					}
+					tmp = (cdo.name || cdo) +'.' + tmp;
+				}
+				s += ' [' + rest[i] + '=' + tmp + ']';
+			} else {
+				s += ' [' + rest[i] + '=' + rest[i + 1] +']';
+			}
+		}
+		trace(s);
+	}
+}
+
+class MiniScroller {
+	
+}
+
+class MiniMenu {
+	
+}
 

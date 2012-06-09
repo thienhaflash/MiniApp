@@ -1,5 +1,4 @@
-package src 
-{
+package {
 	import flash.display.MovieClip;
 	import vn.app.MiniApp;
 	/**
@@ -14,8 +13,8 @@ package src
 			api = new MiniApp(this);
 		}
 		
-		public function initApp() {
-			
+		public function miniInit(xml: XML): void {
+			trace(this, 'miniInit', xml);
 		}
 		
 		

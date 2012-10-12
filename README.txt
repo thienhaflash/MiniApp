@@ -11,3 +11,11 @@ Most importantly, its component based architecture allow apps to built with some
 	+	Lowering the file size to the bare minimum : each library will only be loaded once, right before the need then reuse, no deadth code gets bunched into each module.
 	
 	+	Adding / removing MiniApp from your app is very easy, only one class to include / exclude.
+	
+	+	Common utilities built-in so your code will not only shorter but also much more readable, things like mDisplay.flashvars, mDisplay.removeChildren, mDisplay.getChildrenByNames, mDisplay.tint, mObject.toString ... speak for themselves what they do very clearly, no explaination needed.
+	
+	+	Minimal version of Loader / ContextMenu ... got built-in so you can go faster without any 3rd library needed. Although minimal, the version is tweaked so that it can adapt to be useful in most real world situations
+	
+	
+	
+	

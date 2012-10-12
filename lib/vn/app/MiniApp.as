@@ -2,22 +2,24 @@ package vn.app
 {
 	import flash.display.DisplayObject;
 	import flash.display.DisplayObjectContainer;
+	import flash.display.Stage;
 	import flash.events.Event;
 	import vn.app.mini.mDisplay;
 	import vn.app.mini.mLoad;
+	import vn.app.mini.mUtils;
 	
 	/**
 	 * 
 	 * @author thienhaflash (thienhaflash@gmail.com)
 	 */
 	public class MiniApp {
-		public static const APP_UPDATE	: String = '2012.06.09';
-		public static const APP_VERSION : String = '0.1.0';
+		public static const APP_UPDATE	: String = '2012.10.12';
+		public static const APP_VERSION : String = '0.1.1';
 		
 		
 	/*********************
 	 *		STATIC
-	 *********************/		
+	 *********************/
 		
 		public static var main : MiniApp;
 		
@@ -35,15 +37,29 @@ package vn.app
 			_miniVars	= new mVars(appId, config, appVersion || APP_VERSION);
 			_miniLoad	= new mLoad(_miniVars);
 			_app		= app as DisplayObjectContainer;
-			_app.stage ? _init() :  _app.addEventListener(Event.ADDED_TO_STAGE, _init);
+			
+			if (!_init(_app.stage || config.stage)) {
+				_app.addEventListener(Event.ADDED_TO_STAGE, function (e: Event): void {
+					_app.removeEventListener(Event.ADDED_TO_STAGE, arguments.callee);
+					_init(_app.stage);
+				});
+			}
 		}
 		
-		private function _init(e:Event = null): void {
-			if (e) _app.removeEventListener(Event.ADDED_TO_STAGE, _init);
+		private function _init(stageRef : Stage): Boolean {
+			if (stageRef == null) return false;
 			
-			mDisplay.initStage(_app);
+			mDisplay.initStage(stageRef);
 			_miniVars.getVars(_app);
-			_miniVars.appConfig ? _miniLoad.data(_miniVars.appConfig, _onAppConfigLoaded) : _onAppReady();
+			if (_miniVars.appDebug) trace(this, "_init::flashvars{\n" + mUtils.object.toString(appVars) + "}");
+			
+			//BUGFIXED : delay 1 frame so that the reference to this MiniApp got ready.
+			_app.addEventListener(Event.ENTER_FRAME, function (e: Event): void {
+				_app.removeEventListener(Event.ENTER_FRAME, arguments.callee);
+				_miniVars.appConfig ? _miniLoad.data(_miniVars.appConfig, _onAppConfigLoaded) : _onAppReady();
+			});
+			
+			return true;
 		}
 		
 		private function _onAppConfigLoaded(e: Event):void {
@@ -60,16 +76,28 @@ package vn.app
 		}
 		
 		private function _onAppReady(data: XML = null): void {
+			if (_miniVars.appDebug) trace(this, "_onAppReady::config{"+data+"}");
+			
 			_appXML = data;
 			_callApp('miniInit', [data]);
+			
+			//add default event handlers
+			if (_appHasFunction("onStageResize")) {
+				mDisplay.stage.addEventListener(Event.RESIZE, _app['onStageResize']);
+				_app['onStageResize'](null);
+			}
 		}
 		
 	/*********************
 	 *		SHORTCUTS
 	 *********************/	
 		
+		private function _appHasFunction(funcName: String): Boolean {
+			return _app && _app.hasOwnProperty(funcName) && _app[funcName] is Function;
+		}
+		
 		private function _callApp(funcName: String, params: Array = null): void {
-			if (_app.hasOwnProperty(funcName) && _app[funcName] is Function) (_app[funcName] as Function).apply(null, params);
+			if (_appHasFunction(funcName)) (_app[funcName] as Function).apply(null, params);
 		}
 		
 	/*********************
@@ -99,9 +127,8 @@ package vn.app
 import flash.display.DisplayObject;
 import flash.display.StageAlign;
 import flash.display.StageScaleMode;
-import vn.app.mini.mContextMenu;
 import vn.app.mini.mDisplay;
-import vn.app.mini.mObject;
+import vn.app.mini.mUtils;
 
 class mVars {
 	public var appId		: String;
@@ -109,29 +136,33 @@ class mVars {
 	
 	public var appPath		: String;
 	public var appConfig	: String;
-	public var appCache		: String;
+	public var appCache		: String;	
 	public var appVersion 	: String;
 	public var appDebug		: Boolean;
-	public var appIsLocal	: Boolean;
 	
-	private var map	: Object = { //mapping flashvar names
-		appPath		: 'path',
-		cacheMode	: 'cacheMode',		/* time, version, none */
-		configURL	: 'config',		/* xml path */
-		debug		: 'debug',
-		noCache		: 'noCache'
+	private var map	: Object = {	//mapping flashvar names
+		appPath		: 'path'	,		
+		appConfig	: 'config'	,	/* xml path */
+		appCache	: 'cache'	,	/* time, version, none */
+		appVersion 	: 'version'	,
+		appDebug	: 'debug'
 	}
 	
-	public function mVars(id: String, vars: Object, version : String = null) {
+	public function mVars(id: String, vars: Object, version : String = null): void {
 		appVars 	= vars;
 		appId		= id || vars.id;
-		appPath 	= '';
-		appVersion	= version || '';
+		
+		appPath		= vars.appPath		|| '';
+		appConfig	= vars.appConfig	|| null;
+		appCache	= vars.appCache 	|| 'none';
+		appVersion 	= version			|| vars.appVersion;
+		appDebug	= vars.appDebug;
 	}
 	
 	public function getVars(app: DisplayObject): void {
-		if (appVars && appVars.map) mObject.copy(map, appVars.map); //copy default props
+		if (appVars && appVars.map) mUtils.object.copy(map, appVars.map); //copy default props
 		var cnt : int;
+		
 		if (appId) {//try to get vars
 			for (var s : String in mDisplay.flashvars) {
 				if (s.indexOf(appId + '.') == 0) {
@@ -139,13 +170,17 @@ class mVars {
 					appVars[s.split(appId+'.')[1]] = mDisplay.flashvars[s];
 				}
 			}
-		} 
-		if (cnt == 0) mObject.copy(appVars, mDisplay.flashvars);
-		appConfig		= appVars[map.configURL] || 'config.xml';
-		appPath			= appVars[map.appPath] || '';
-		appCache		= appVars[map.cacheMode] || 'none';
+		}
 		
-		if (!appVars || !appVars.preventContextMenuDefault) mContextMenu.add(app, appId || ('MiniApp v.' + appVersion));
+		if (cnt == 0) mUtils.object.copy(appVars, mDisplay.flashvars);
+		
+		appPath		= appVars[map.appPath] 		|| appPath;
+		appConfig	= appVars[map.appConfig]	|| appConfig;
+		appCache	= appVars[map.appCache]		|| appCache;
+		appVersion 	= appVars[map.appVersion]	|| appVersion;
+		appDebug	= appVars[map.appDebug]		|| appDebug;
+		
+		if (!appVars || !appVars.preventDefaultContextMenu) mDisplay.contextMenu.add(app, (appId ? appId : 'MiniApp') +' v.' + appVersion);
 		if (!appVars || appVars.preventStageDefault != true) {
 			mDisplay.stage.scaleMode	= StageScaleMode.NO_SCALE;
 			mDisplay.stage.align		= StageAlign.TOP_LEFT;

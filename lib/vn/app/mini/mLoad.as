@@ -23,7 +23,7 @@ package vn.app.mini
 		public var path 			: String;
 		public var noCache			: String;
 		public var version			: String;
-		public var context			: LoaderContext;
+		public var context			: LoaderContext; //so we can tweak for each instance
 		
 		private var _queue			: Array = [];
 		private var _isLocal		: Boolean;
@@ -34,6 +34,9 @@ package vn.app.mini
 			this.path		= basePath;
 			this.noCache 	= noCache;
 			this.version 	= version;
+			
+			_progress		= 0;
+			
 			this.callback	= (callback && callback.hasOwnProperty('progress')) ? callback : null;
 			this._isLocal	= Capabilities.playerType == 'StandAlone' || Capabilities.playerType == 'External';
 			this.context	= new LoaderContext(true, ApplicationDomain.currentDomain);

@@ -2,7 +2,7 @@ package {
 	import flash.display.MovieClip;
 	import flash.events.Event;
 	import flash.ui.ContextMenuItem;
-	import vn.app.mini.mContextMenu;
+	import vn.app.mini.mDisplay;
 	import vn.app.MiniApp;
 	/**
 	 * ...
@@ -10,23 +10,31 @@ package {
 	 */
 	public class SampleApp extends MovieClip {
 		
+		public var APP_NAME 	: String = "SampleApp";
+		public var APP_VERSION	: String = "1.0.0";
+		
 		private var api : MiniApp;
 		
 		public function SampleApp() {
-			api = new MiniApp(this, { config: 'config.xml', path:'bin/' }, '[ SampleApp v.1.0 ]' );//, preventContextMenuDefault: true
-			
-			mContextMenu.add(this, 
-				'',
-				['Home', 'About us', 'Profile', 'Client List', 'Portfolio'], onSelectMenuItem,
-				'','Copyright(c) 2012 by MiniApp'
-			);
+			api = new MiniApp(this, {
+				config	:'config.xml',
+				path	:'bin/',
+				debug	: true,
+				preventDefaultContextMenu: true
+			}, APP_NAME, APP_VERSION);
 		}
 		
 		private function onSelectMenuItem(e: Event):void {
-			mContextMenu.activeItem(this, e.currentTarget);
+			mDisplay.contextMenu.activeItem(this, e.currentTarget);
 		}
 		
 		public function miniInit(xml: XML): void {
+			mDisplay.contextMenu.add(this, 
+				//'', 
+				['Home', 'About us', 'Profile', 'Client List', 'Portfolio'], onSelectMenuItem,
+				'', 'Copyright(c) 2012 by MiniApp'
+			);
+			
 			//trace('done', api.load.progress);
 			//trace(this, 'miniInit', xml);
 		}

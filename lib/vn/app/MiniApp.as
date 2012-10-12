@@ -14,7 +14,7 @@ package vn.app
 	 */
 	public class MiniApp {
 		public static const APP_UPDATE	: String = '2012.10.12';
-		public static const APP_VERSION : String = '0.1.1';
+		public static const APP_VERSION : String = '0.1.2';
 		
 		
 	/*********************

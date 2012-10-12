@@ -1,5 +1,4 @@
-package vn.app.mini 
-{
+package vn.app.mini {
 	import flash.display.Bitmap;
 	import flash.display.BitmapData;
 	import flash.display.BlendMode;
@@ -223,8 +222,11 @@ package vn.app.mini
 			}
 		}
 		
-		public static function formatTextField(textfield: TextField, formatObj: Object, useAsDefault:Boolean = true): TextField { /* small secrets : useDefaults : true */
-			if (textfield) {
+		public static function formatTextField(textfield: *, formatObj: Object, useAsDefault:Boolean = true): TextField { /* small secrets : useDefaults : true */
+			var i	: int;
+			var arr : Array = textfield is TextField ? [textfield] : textfield;
+			
+			if (arr) {
 				var tff		: TextFormat	= textfield.getTextFormat();
 				if (formatObj) {
 					if (formatObj.useDefaults) {
@@ -238,11 +240,25 @@ package vn.app.mini
 					}
 					
 					for (var prop : String in formatObj) {
-						formatProps[prop] ? tff[prop] = formatObj[prop] : textfield[prop] = formatObj[prop];
+						if (formatProps[prop]) {
+							tff[prop] = formatObj[prop];
+						} else {
+							for (i = 0; i < arr.length; i++) {
+								(arr[i] as TextField)[prop] = formatObj[prop];
+							}
+						}
 					}
-					textfield.setTextFormat(tff);
+					
+					for (i = 0; i < arr.length; i++) {
+						(arr[i] as TextField).setTextFormat(tff);
+					}
 				}
-				if (useAsDefault) textfield.defaultTextFormat = tff;
+				
+				if (useAsDefault) {
+					for (i = 0; i < arr.length; i++) {
+						(arr[i] as TextField).defaultTextFormat = tff;
+					}
+				}
 			} else {
 				//trace('formatTextfield', 'textfield', textfield, 'formatObj', formatObj);
 			}

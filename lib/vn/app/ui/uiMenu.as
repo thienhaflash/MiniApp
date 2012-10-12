@@ -194,7 +194,7 @@ package vn.app.ui {
 		public function set allowParentClick(value:Boolean):void { _allowParentClick = value; }
 		
 		/********  SET NUMBER OF LEVELS GET VISIBLE  **********/
-		private var _keepShowLevel	: int = 1;
+		private var _keepShowLevel	: int = 0;
 		public function get keepShowLevel():int { return _keepShowLevel; }
 		public function set keepShowLevel(value:int):void { _keepShowLevel = value; _onMouseOut(null); }
 		

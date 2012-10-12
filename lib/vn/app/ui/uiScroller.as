@@ -41,14 +41,24 @@ package vn.app.ui
 		protected var _slideL:Number;
 		protected var update:Function;
 		
-		public function uiScroller(parent: DisplayObjectContainer) {
+		public function uiScroller(parentOrViewProps : Object) {
 			view = Utils.newScroller();
 			delta = 0.1;
 			//tp = 0;
 			relation = 0.2;
 			position = 0;
 			
-			parent.addChild(view);
+			if (parentOrViewProps is DisplayObjectContainer) {
+				parentOrViewProps.addChild(view);
+			} else {
+				var p : DisplayObjectContainer = parentOrViewProps.parent;
+				if (p) p.addChild(view);
+				for (var s : String in parentOrViewProps) {
+					try {
+						view[s] = parentOrViewProps[s];
+					} catch (e: Error) {}
+				}
+			}
 		}
 		
 		private function _onClickPrev(e:MouseEvent):void {

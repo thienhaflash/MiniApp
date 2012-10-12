@@ -18,9 +18,12 @@ Most importantly, its component based architecture allow apps to built with some
 	
 TARGETS :
 	
-	+	Minimal standalone component set	: uiProgress, uiSeek, uiSlider, uiInput, uiButton, uiState, uiTab, uiGrid, uiScroll, uiMenu, uiCombobox, uiPager, uiTooltip, uiFilter, uiText (support scroll / icons ? )
-	+ 	Minimal descriptive uiLayout set	: uiForm, uiAlert
-	+	Minimal standalone manager			: SoundManager, LanguageManager, UserManager, FontManager, AssetManager, StyleManager
+	+	Minimal standalone component set	: each ui component should public out dependencies : Tween, Layout, Skin(Font, DefaultSkinClass), share the same states : isFocus, isEnabled
+		+ Done				: uiInput, uiState, uiRadio, uiMenu, uiScroller, uiTooltip
+		+ Will be done		: uiProgress, uiSeek, uiSlider (multi ?), uiRange, uiButton (doubleButton, mutiState, textBased, frameBased, iconBased ...), uiTab, uiGrid, uiCombobox, uiPager, uiFilter, uiText (support scroll / icons ? ), uiVideo, uiWebcam, uiSlideshow (external effects?), uiDataGrid, uiNumeric, uiKnob
+		+ Will be consider	: uiReflection, uiFlip, uiGraph, uiCalendar (text ?), uiPanel, uiForm, uiAlert, uiChat, uiTree, uiColorPicker, uiLayoutBuilder (2 level only ?), uiEditor
+		
+	+	Minimal standalone manager	: SoundManager, LanguageManager, UserManager, FontManager, AssetManager, StyleManager, PanZoomRotateDragManager, TaskManager, FocusManager, KeyboardManager
 	
 	
 	

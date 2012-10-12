@@ -8,6 +8,7 @@ package {
 	import vn.app.ui.uiInput;
 	import vn.app.ui.uiMenu;
 	import vn.app.ui.uiRadio;
+	import vn.app.ui.uiScroller;
 	import vn.app.ui.uiTooltip;
 	/**
 	 * ...
@@ -45,12 +46,18 @@ package {
 			uiTooltip.init(null, this.stage, 0);
 			uiTooltip.attach(pdo, "Hey, an Input item");
 			
+			new uiScroller( {parent: this, y: 70 } );
+			
 			new uiRadio(trace).reset({parent: this, y: 50}, "Option 1","Option 2","Option 3","Option 4", "Option 5");
 			new uiMenu(trace).reset(this, ["File", "Open", "Close", "Save"], "Edit", "View", "Search", "Debug", "Project", "Insert", "Refactor", "Tools", "Macros", "Syntax", "Help");
 			
 			
 			//trace('done', api.load.progress);
 			//trace(this, 'miniInit', xml);
+		}
+		
+		public function onStageResize(e: Event): void {
+			trace(this, "onStageResize::", e);
 		}
 	}
 }

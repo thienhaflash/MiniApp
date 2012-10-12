@@ -4,7 +4,7 @@ package vn.app.ui {
 	import flash.display.Sprite;
 	
 	
-	//TODO : test 
+	//TODO : add dynamic modules loading (based on demand)
 	
 	/**
 	 * uiState provide a stated container that only contains only one child at each state
